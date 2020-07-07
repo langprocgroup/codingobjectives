@@ -1,6 +1,9 @@
 import itertools
 
+import rfutils
 import torch
+
+""" Optimzation approach to Huffman code """
 
 
 # A code is a function G -> prob X
@@ -10,7 +13,7 @@ import torch
 # If T is the length of the longest code, then the incremental policy representation is a matrix
 # G x X^T x (X+1)
 
-DEFAULT_NUM_EPOCHS = 1000
+DEFAULT_NUM_EPOCHS = 10000
 EPSILON = 10 ** -12
 
 flat = itertools.chain.from_iterable
@@ -20,7 +23,7 @@ X_axis = 1
 C_axis = 1
 Xt_axis = 2
 
-def incremental_autoencoder(J, source, V, K, sigma=1, num_epochs=DEFAULT_NUM_EPOCHS, print_every=100, **kwds):
+def incremental_autoencoder(J, source, V, K, sigma=1, num_epochs=DEFAULT_NUM_EPOCHS, print_every=1000, **kwds):
     """ J = H[G|X] + a I[X_t : G | X_{<t}] + b H[X_t | G, X_{<t}]. 
     Gives a Huffman code for a=1, b=0. 
     """
@@ -121,5 +124,8 @@ class IncrementalTransform:
 
     
 if __name__ == '__main__':
-    import nose
-    nose.runmodule()
+    source = torch.Tensor([1/2, 1/4, 1/8, 1/8])
+    t, code = incremental_autoencoder(J_huffman(), source, 2, 3, sigma=.5)
+    print(t.X)
+    print(code)
+    
