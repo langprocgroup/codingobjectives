@@ -429,8 +429,8 @@ def code_survey(num_factors, sigma=1, M=PSpaceEnumeration, full_context=False):
         code = {g : M.ret(strings[i]) for i, (g, p) in enumerate(source)}
         IG, Sf, H, I = incremental_components(source, code)
         ji = joint_incremental_transform(source, code)
-        full_triple = ji >> M.lift_ret(lambda x: (x[0], x[1][-1], len(x[1][:-1])))
-        t_triple = ji >> M.lift_ret(lambda x: (x[0], x[1][-1], x[1][:-1]))
+        t_triple = ji >> M.lift_ret(lambda x: (x[0], x[1][-1], len(x[1][:-1])))
+        full_triple = ji >> M.lift_ret(lambda x: (x[0], x[1][-1], x[1][:-1]))
         a1, a2, a3 = information_spectrum(full_triple, 3)
         a1t, a2t, a3t = information_spectrum(t_triple, 3)
         yield {
