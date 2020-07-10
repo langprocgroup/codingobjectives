@@ -100,6 +100,14 @@ def xor_source_code():
     }
     return G, C
 
+def xor_distro():
+    return PSpaceEnumeration({
+        '000': 1,
+        '011': 1,
+        '101': 1,
+        '110': 1,
+    }).normalize()
+
 def hadamard_example():
     G = {'a': .25, 'b': .25, 'c': .25, 'd': .25}
     C = {'a': "000", 'b': "011", 'c': "101", 'd': "110"}
@@ -220,7 +228,7 @@ def MI(joint):
     return one.entropy() + two.entropy() - joint.entropy()
 
 def conditional_entropy(joint):
-    # H[Y|X] = H[X,Y] - H[X]
+    # H[Y|X] = H[X,Y] - H[X]. First = conditioner.
     M = type(joint)
     one = joint >> M.lift_ret(lambda x: x[0])
     return joint.entropy() - one.entropy()
@@ -263,7 +271,20 @@ def filter_indices(xs, indices):
                 yield x
     return tuple(gen())
 
-def II_decomposition(triple, K):
+def II_decomposition(x, K):
+    M = type(x)
+    def subset_distributions():
+        for subset in list(powerset(range(K)))[1:]:
+            yield subset, x >> M.lift_ret(lambda x: filter_indices(x, subset))
+    IIs = {}
+    for subset, distro in subset_distributions():
+        IIs[subset] = -(-1)**len(subset) * distro.entropy()
+        for subsubset in powerset(subset, upto=len(subset)-1):
+            if subsubset:
+                IIs[subset] += (-1)**len(subset) * IIs[subsubset]
+    return IIs            
+
+def incremental_II_decomposition(triple, K):
     # decomposition of I[X:Y|Z] with respect to X.
     # I[X:Y|Z] = - \sum_k (-1)^k \sum_x_k I[*x_k:y|z]
     M = type(triple)
@@ -282,21 +303,27 @@ def II_decomposition(triple, K):
         for subsubset in powerset(subset, upto=len(subset)-1):
             if subsubset:
                 IIs[subset] += (-1)**len(subset) * IIs[subsubset]
-
     return IIs
 
-def information_spectrum(triple, K):
-    d = II_decomposition(triple, K)
+def information_spectrum(x, K):
+    d = II_decomposition(x, K)
+    result = [0]*K
+    for subset, II in d.items():
+        result[len(subset)-1] += -(-1)**len(subset) * II # hmmm
+    return result
+
+def incremental_information_spectrum(triple, K):
+    d = incremental_II_decomposition(triple, K)
     result = [0]*K
     for subset, II in d.items():
         result[len(subset)-1] += II
     return result
 
-def test_II_decomposition():
+def test_incremental_II_decomposition():
     G, C = xor_source_code()
     inc = joint_incremental_transform(G, C)
     triple = inc >> type(inc).lift_ret(lambda x: (x[0], x[1][-1], x[1][:-1]))
-    decomp = II_decomposition(triple, 2)
+    decomp = incremental_II_decomposition(triple, 2)
     assert decomp[(0,)] == 0
     assert decomp[(1,)] == 0
     assert decomp[(0,1)] == 1
@@ -411,43 +438,81 @@ def redundant_code(N_M=100, length=10, granularity=1):
 def logistic(x, k=1, x0=0):
     return 1 / (1 + np.exp(-k*(x - x0)))
 
+def softmax(xs):
+    exps = np.exp(xs)
+    return exps / exps.sum()
+
 def independent_binary_source(num_factors, sigma=1, M=PSpaceEnumeration):
     probabilities = logistic(np.random.randn(num_factors)*sigma)
-    flips = M.mapM(PSpaceEnumeration.flip, probabilities)
+    flips = M.mapM(M.flip, probabilities)
     return flips
+
+def correlated_binary_source(num_factors, sigma=1, M=PSpaceEnumeration):
+    probabilities = softmax(np.random.randn(2**num_factors)*sigma)
+    support = enumerate_bitstrings(num_factors)
+    return M(dict(zip(support, probabilities)))
 
 def enumerate_bitstrings(k):
     bools = itertools.product(*[range(2)]*k)
     for bool in bools:
         yield "".join(map(str, map(int, bool)))
 
+def total_correlation(xy, K):
+    """ TC[Y|X] = \sum_i H[Y_i|X] - H[Y|X] """
+    M = type(xy)    
+    joint = conditional_entropy(xy)
+    def marginals():
+        for k in range(K):
+            marginal = xy >> M.lift_ret(lambda xy: (xy[0], xy[-1][k]))
+            yield conditional_entropy(marginal)
+    return sum(marginals()) - joint
+
 def code_survey(num_factors, sigma=1, M=PSpaceEnumeration, full_context=False):
     # O(2^N!) -- very bad. and only 2 are systematic. 
     # For N=4, already 20,922,789,888,000
-    source = independent_binary_source(num_factors, sigma=sigma, M=M)
+    source = correlated_binary_source(num_factors, sigma=sigma, M=M)
+    source_tc = total_correlation(source >> M.lift_ret(lambda g: (None, g)), num_factors)
+    source_decomp = {
+        'I[G_%s]' % "".join(map(str, subset)) : value
+        for subset, value in II_decomposition(source, num_factors).items()
+    }
+    
     for strings in itertools.permutations(enumerate_bitstrings(num_factors)):
         code = {g : M.ret(strings[i]) for i, (g, p) in enumerate(source)}
+        joint = source >> (lambda g: (code[g] >> M.lift_ret(lambda c: (g,c))))
+        signal = joint >> M.lift_ret(lambda gx: gx[-1])
+        conditional_tc = total_correlation(joint, num_factors)
+        form_tc = total_correlation(signal >> M.lift_ret(lambda x: (None,x)), num_factors)
         IG, Sf, H, I = incremental_components(source, code)
         ji = joint_incremental_transform(source, code)
         t_triple = ji >> M.lift_ret(lambda x: (x[0], x[1][-1], len(x[1][:-1])))
         full_triple = ji >> M.lift_ret(lambda x: (x[0], x[1][-1], x[1][:-1]))
-        a1, a2, a3 = information_spectrum(full_triple, 3)
-        a1t, a2t, a3t = information_spectrum(t_triple, 3)
-        yield {
+        a1, a2, a3 = incremental_information_spectrum(full_triple, num_factors)
+        a1t, a2t, a3t = incremental_information_spectrum(t_triple, num_factors)
+        a1f, a2f, a3f = information_spectrum(signal, num_factors)
+        result = {
             'code': code,
-            'IG': IG,
-            'synergy': Sf,
-            'H': H,
-            'I': I,
+            'I[x_t:g]': IG,
+            'S[x_t:g:x_{<t}]': Sf,
+            'H[x_t]': H,
+            'I[x_t:x_{<t}]': I,
             'a1_t': a1t,
             'a2_t': a2t,
             'a3_t': a3t,
             'a1_full': a1,
             'a2_full': a2,
-            'a3_full': a3,            
+            'a3_full': a3,
+            'a1_form': a1f,
+            'a2_form': a2f,
+            'a3_form': a3f,
+            'TC[x|g]': conditional_tc,
+            'TC[x]': form_tc,
+            'TC[g]': source_tc,
             'strong_systematicity': is_strongly_systematic(source, code),
             'weak_systematicity': is_weakly_systematic(source, code),
         }
+        result.update(source_decomp)
+        yield result
 
 def all_same(xs):
     first = rfutils.first(xs)
