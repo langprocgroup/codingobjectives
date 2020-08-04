@@ -59,7 +59,7 @@ def measures(mapping):
         valence = (name.count('x'), name.count('y'))
         if valence[0] > 0 and valence[1] > 0:
             valence_label = "spectrum_%d_%d" % valence
-            if valence in result:
+            if valence_label in result:
                 result[valence_label] += value
             else:
                 result[valence_label] = value
@@ -69,10 +69,11 @@ def measures(mapping):
 
 def information_lattice(d):
     for subset in powerset(d._rvs):
-        name = "I_%s" % "".join(subset)        
-        sub_d = d.marginal(subset)
-        value = dit.multivariate.interaction_information(sub_d)
-        yield name, value
+        if any('x' in v for v in subset) and any('y' in v for v in subset):
+            name = "I_%s" % "".join(subset)        
+            sub_d = d.marginal(subset)
+            value = dit.multivariate.interaction_information(sub_d)
+            yield name, value
 
 def survey(K, sigma=0):
     source = binary_source(K, sigma=sigma)
