@@ -69,11 +69,10 @@ def measures(mapping):
 
 def information_lattice(d):
     for subset in powerset(d._rvs):
-        if any('x' in v for v in subset) and any('y' in v for v in subset):
-            name = "I_%s" % "".join(subset)        
-            sub_d = d.marginal(subset)
-            value = dit.multivariate.interaction_information(sub_d)
-            yield name, value
+        name = "I_%s" % "".join(subset)        
+        sub_d = d.marginal(subset)
+        value = dit.multivariate.interaction_information(sub_d)
+        yield name, value
 
 def survey(K, sigma=0):
     source = binary_source(K, sigma=sigma)
@@ -82,7 +81,7 @@ def survey(K, sigma=0):
         result['mapping'] = string
         yield result
 
-def main(K=3, sigma=0):
+def main(K=3, sigma=1):
     rfutils.write_dicts(sys.stdout, survey(K, sigma=sigma))
     
 if __name__ == '__main__':
