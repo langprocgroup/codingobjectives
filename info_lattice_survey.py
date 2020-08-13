@@ -28,16 +28,44 @@ def binary_source(K, sigma=0):
     d.set_rv_names(names)
     return d
 
-def deterministic_binary_mappings(source):
+flat = itertools.chain.from_iterable
+
+def integer_partitions(n, k, l=1):
+    '''n is the integer to partition, k is the length of partitions, l is the min partition element size'''
+    # From https://stackoverflow.com/questions/18503096/python-integer-partitioning-with-given-k-partitions user Snakes and Coffee
+    if k < 1:
+        return
+    elif k == 1:
+        if n >= l:
+            yield (n,)
+        return
+    else:
+        for i in range(l, n+1):
+            for result in integer_partitions(n-i, k-1, i):
+                yield (i,) + result
+
+def expansions(xs, k):
+    for partition in integer_partitions(k, len(xs)):
+        for partition_perm in set(itertools.permutations(partition)):
+            expanded = [[x]*n for x, n in zip(xs, partition_perm)]
+            yield tuple(flat(expanded))
+
+def onto_mappings_to(codomain, K):
+    return set(flat(map(itertools.permutations, expansions(codomain, K))))
+
+def deterministic_binary_mappings(source, T=None):
     K = len(source.rvs)
-    bitstrings = enumerate_bitstrings(K)
+    if T is None:
+        T = K
+    bitstrings = list(enumerate_bitstrings(T))
     source_names = sorted(source._rvs)
-    signal_names = ["y%d" % i for i in range(K)]
+    signal_names = ["y%d" % i for i in range(T)]
     names = source_names + signal_names
     source_outcomes = source.outcomes
     source_pmf = source.pmf
-    for mapping in itertools.permutations(bitstrings):
-        pairs = [(outcome,bitstring) for outcome, bitstring in zip(source_outcomes, mapping)]
+    mappings = onto_mappings_to(bitstrings, 2**K)
+    for mapping in mappings:
+        pairs = list(zip(source_outcomes, mapping))
         d = dit.Distribution([outcome+bitstring for outcome, bitstring in pairs], source_pmf)
         d.set_rv_names(names)
         yield str(dict(pairs)), d
@@ -67,25 +95,39 @@ def measures(mapping):
     result['is_systematic'] = is_weakly_systematic(mapping)
     return result
 
+def is_even(x):
+    return x % 2 == 0
+
 def information_lattice(d):
     for subset in powerset(d._rvs):
-        name = "I_%s" % "".join(subset)        
-        sub_d = d.marginal(subset)
-        value = dit.multivariate.interaction_information(sub_d)
-        yield name, value
+        if subset:
+            name = "I_%s" % "".join(subset)
+            vnames = [(v,) for v in subset]
+            value = dit.multivariate.interaction_information(d, vnames)
+            yield name, value
 
-def survey(K, sigma=0):
+def survey(K, T=None, sigma=0):
     source = binary_source(K, sigma=sigma)
-    for string, mapping in deterministic_binary_mappings(source):
+    for string, mapping in deterministic_binary_mappings(source, T=T):
         result = measures(mapping)
         result['mapping'] = string
         yield result
 
-def main(K=3, sigma=1):
-    rfutils.write_dicts(sys.stdout, survey(K, sigma=sigma))
+def main(K=3, T=3, sigma=1):
+    if isinstance(K, str):
+        K = int(K)
+    if isinstance(T, str):
+        T = int(T)
+    if isinstance(sigma, str):
+        sigma = float(sigma)
+    assert K >= 0
+    assert T >= 0
+    assert sigma >= 0
+    assert T <= K, "T must be less than or equal to K"
+    rfutils.write_dicts(sys.stdout, survey(K, T=T, sigma=sigma))
     
 if __name__ == '__main__':
-    main()
+    main(*sys.argv[1:])
     
 
     
