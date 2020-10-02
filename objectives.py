@@ -360,7 +360,7 @@ def predictive_ib_code(which_code='opt', goal_k=2, signal_k=2, ragged=False, bot
             for e, m, g in zip(extractor, Mg_element, g)
         )
         
-    for indices, p_g in np.ndenumerate(source.cpu().numpy()):
+    for indices, p_g in np.ndenumerate(source.cpu().detach().numpy()):
         for i_e, extractor in enumerate(extractors):
             for i_m, Mg_element in enumerate(Mg_support):
                 axes = tuple(indices) + (i_e, i_m)
@@ -589,7 +589,7 @@ def run_codes(codes, num_restarts=1, max_attempts=5, tol=0.005, complexity_weigh
 
 def hard_code(code, t):
     indices = code.argmax(-1)
-    return {g:t.X[i] for g, i in np.ndenumerate(indices.cpu().numpy())}
+    return {g:t.X[i] for g, i in np.ndenumerate(indices.cpu().detach().numpy())}
 
 def is_systematic(code):
     # H[x_t | g_k] = 0 for all t for some permutation K of g. (what if T>K?)
