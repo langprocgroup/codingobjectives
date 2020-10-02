@@ -1,7 +1,9 @@
+import sys
 import itertools
 import operator
 import functools
 import random
+import argparse
 
 import rfutils
 import torch
@@ -696,8 +698,8 @@ def huffman_example():
 def pib_code_parameter_sweep(granularity=50, num_runs=10, **kwds):
     # Each optimization takes 
     # local: 30s
-    # jenova cpu: 
-    # jenova gpu: 
+    # jenova cpu: 30s
+    # jenova gpu: 50s (?!?!)
     alphas = torch.linspace(0,1,granularity)
     betas = torch.linspace(0,1,granularity)
     for alpha in alphas:
@@ -718,4 +720,23 @@ def pib_code_parameter_sweep(granularity=50, num_runs=10, **kwds):
                     'nondeterminism': nondeterminism,
                 }
     
-    
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Run parameter sweep of Predictive IB code.')
+    parser.add_argument('--granularity', dest='granularity', type=int, default=25, help='number of parameters between 0 and 1 to examine.')
+    parser.add_argument('--num_runs', dest='num_runs', type=int, default=1, help='number of runs per parameter setting.')
+    parser.add_argument('--goal_k', dest='goal_k', type=int, default=2, help='source dimensionality')
+    parser.add_argument('--signal_k', dest='signal_k', type=int, default=2, help='signal length')
+    parser.add_argument('--ragged', dest='ragged', type=bool, default=False, help='ragged signal?')
+    a = parser.parse_args()
+    results = pib_code_parameter_sweep(
+        granularity=a.granularity,
+        num_runs=a.num_runs,
+        goal_k=a.goal_k,
+        signal_k=a.signal_k,
+        ragged=a.ragged
+    )
+    rfutils.write_dicts(sys.stdout, results)
+                                           
+
+ 
