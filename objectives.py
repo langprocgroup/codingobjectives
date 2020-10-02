@@ -686,7 +686,7 @@ def predictive_ib_example():
 # The Recursive Information Bottleneck is basically handled by pfa.py...
     
 if __name__ == '__main__':
-    source = torch.Tensor([1/2, 1/4, 1/8, 1/8])
+    source = torch.Tensor([1/2, 1/4, 1/8, 1/8]).to(device)
     t, code = incremental_autoencoder(J_huffman(), source, 2, 4, sigma=.5)
     print(t.X)
     print(hard_code(code, t))
