@@ -13,7 +13,8 @@ import enumerate_lexicons as e
 
 """ Optimization approach to systematic codes """
 
-device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+device = 'cpu'#torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+# Weirdly, the CPU is faster for these optimizations
 
 # A code is a function G -> prob X
 # So we can represent it as a stochastic G x X matrix L where L[g,x] = p(x|g).
@@ -549,6 +550,8 @@ def predictive_ib_code(which_code='opt', goal_k=2, signal_k=2, ragged=False, bot
 
         if not hasattr(complexity_weight, '__iter__'):
             complexity_weight = [complexity_weight]*3
+        elif hasattr(complexity_weight, 'shape') and len(complexity_weight.shape) == 0:
+            complexity_weight = [complexity_weight]*3
                 
         complexity = complexity_weight[0] * I_sms + complexity_weight[1] * I_gmg + complexity_weight[2] * S_mgs
 
@@ -563,10 +566,10 @@ def predictive_ib_code(which_code='opt', goal_k=2, signal_k=2, ragged=False, bot
         loss.backward()
         opt.step()
 
-        if i % print_every == 0:
+        if print_every is not None and i % print_every == 0:
             print("epoch = ", i, " code MI = ", code_mi.item(), " divergence = ", divergence.item(), " I_gmg = ", I_gmg.item(), " I_sms = ", I_sms.item(), " S_mgs = ", S_mgs.item(), " I_gsm = ", I_sm.item())
 
-    return code, q_state_mem, q_goal_extractor, code_mi.item(), I_sm.item(), divergence.item(), t
+    return source, code, q_state_mem, q_goal_extractor, code_mi.item(), I_sm.item(), divergence.item(), t
 
 def run_codes(codes, num_restarts=1, max_attempts=5, tol=0.005, complexity_weight=1, comm_weight=.2, **kwds):
     def run_with_restarts(c):
@@ -685,9 +688,31 @@ def predictive_ib_example():
 
 # The Recursive Information Bottleneck is basically handled by pfa.py...
     
-if __name__ == '__main__':
+def huffman_example():
     source = torch.Tensor([1/2, 1/4, 1/8, 1/8]).to(device)
     t, code = incremental_autoencoder(J_huffman(), source, 2, 4, sigma=.5)
-    print(t.X)
-    print(hard_code(code, t))
+    return t, code
+
+def pib_code_parameter_sweep(granularity=50, num_runs=10, **kwds):
+    # Each optimization takes 30s
+    alphas = torch.linspace(0,1,granularity)
+    betas = torch.linspace(0,1,granularity)
+    for alpha in alphas:
+        for beta in betas:
+            for r in range(num_runs):
+                source, code, _, _, mi, complexity, divergence, t = predictive_ib_code(complexity_weight=alpha, comm_weight=beta, print_every=None, **kwds)
+                hcode = hard_code(code, t)
+                nondeterminism = cross_entropy(source.unsqueeze(-1)*code, code).item()
+                yield {
+                    'alpha': alpha.item(),
+                    'beta': beta.item(),
+                    'run': r,
+                    'mi': mi,
+                    'complexity': complexity,
+                    'divergence': divergence,
+                    'systematic': is_systematic(hcode),
+                    'hard_code': hcode,
+                    'nondeterminism': nondeterminism,
+                }
+    
     
