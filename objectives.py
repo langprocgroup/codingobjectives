@@ -43,7 +43,7 @@ def incremental_autoencoder(J, source, V, K, sigma=1, num_epochs=DEFAULT_NUM_EPO
     num_X = len(X)
     t = IncrementalTransform(X)
     
-    init = sigma * torch.randn(num_G, num_X)
+    init = sigma * torch.randn(num_G, num_X).to(device)
     code = init.clone().detach().requires_grad_(True)
     opt = torch.optim.Adam([code], **kwds)
     source = source[:, None]
