@@ -586,7 +586,7 @@ def run_codes(codes, num_restarts=1, max_attempts=5, tol=0.005, complexity_weigh
 
 def hard_code(code, t):
     indices = code.argmax(-1)
-    return {g:t.X[i] for g, i in np.ndenumerate(indices.numpy())}
+    return {g:t.X[i] for g, i in np.ndenumerate(indices.cpu().numpy())}
 
 def is_systematic(code):
     # H[x_t | g_k] = 0 for all t for some permutation K of g. (what if T>K?)
