@@ -359,7 +359,7 @@ def predictive_ib_code(which_code='opt', goal_k=2, signal_k=2, ragged=False, bot
             for e, m, g in zip(extractor, Mg_element, g)
         )
         
-    for indices, p_g in np.ndenumerate(source.numpy()):
+    for indices, p_g in np.ndenumerate(source.cpu().numpy()):
         for i_e, extractor in enumerate(extractors):
             for i_m, Mg_element in enumerate(Mg_support):
                 axes = tuple(indices) + (i_e, i_m)
