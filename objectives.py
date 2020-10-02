@@ -694,13 +694,16 @@ def huffman_example():
     return t, code
 
 def pib_code_parameter_sweep(granularity=50, num_runs=10, **kwds):
-    # Each optimization takes 30s
+    # Each optimization takes 
+    # local: 30s
+    # jenova cpu: 
+    # jenova gpu: 
     alphas = torch.linspace(0,1,granularity)
     betas = torch.linspace(0,1,granularity)
     for alpha in alphas:
         for beta in betas:
             for r in range(num_runs):
-                source, code, _, _, mi, complexity, divergence, t = predictive_ib_code(complexity_weight=alpha, comm_weight=beta, print_every=None, **kwds)
+                source, code, _, _, mi, complexity, divergence, t = predictive_ib_code(complexity_weight=alpha.item(), comm_weight=beta.item(), print_every=None, **kwds)
                 hcode = hard_code(code, t)
                 nondeterminism = cross_entropy(source.unsqueeze(-1)*code, code).item()
                 yield {
